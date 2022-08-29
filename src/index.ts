@@ -1,42 +1,49 @@
-import docker from "dockerode"
-import tar from "tar"
-
-async function readStream(stream: NodeJS.ReadableStream): Promise<void> {
-    return new Promise((resolve, reject) => {
-        stream.on("data", (data) => {
-            console.log(data.toString())
-        })
-        stream.on("close", () => {
-            resolve()
-        })
-        stream.on("error", (error) => {
-            reject(error)
-        })
-    })
-}
+import tar from "tar";
+import Dockerode from "dockerode";
+import fs from "fs";
 
 async function main() {
-    let tarTsFilePath = "example/testDocker.ts.tar.gz"    
-    let tarGoFilePath = "example/testDocker.go.tar.gz"
-    // create the tar file
-    tar.create({
-        gzip: true,
-        cwd: "example",
-        file: tarTsFilePath,
-    }, ["testDocker"])
-    
-    
-    let dockerClient = new docker()
-    // test go tar archive
-    let buildStreamGoFile = await dockerClient.buildImage(tarGoFilePath, {
-        t: "test-docker:ts"
-    } )
+    const folderPath = "./src/dockerTest";
+    const tarOutPath = "./src/dockerTest.tar.gz";
+    await tar.create(
+        {
+            gzip: true,
+            file: tarOutPath,
+            cwd: folderPath,
+        },
+        ["."]
+    );
 
-    // test ts tar archive
-    await readStream(buildStreamGoFile)
-    let buildStreamTsFile = await dockerClient.buildImage(tarTsFilePath, {
-        t: "test-docker:ts"
-    } )
-    await readStream(buildStreamTsFile)
+    await tar.t({
+        file: tarOutPath,
+        onentry: (entry) => {
+            console.log(entry.header.path);
+        },
+
+    })
+
+    // const tfs = await fs.createReadStream(tarOutPath);
+    // tfs
+    //     .pipe(tar.t())
+    //     .on("entry", (entry) => {
+    //         console.log(entry);
+    //     })
+    //     .on("error", (error) => {
+    //         console.log(error);
+    //     });
+
+    console.log("finished");
+    const docker = new Dockerode();
+    const buildStream = await docker.buildImage(tarOutPath, {
+        t: "docker-test-ts",
+    });
+    buildStream
+        .on("data", (data) => {
+            console.log(data.toString());
+        })
+        .on("error", (err) => {
+            console.log(err);
+        });
 }
-main()
+
+main();
